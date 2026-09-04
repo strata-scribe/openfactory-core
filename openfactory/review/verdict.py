@@ -7,6 +7,60 @@ gates: [{name, passed, advisory}], suppressions: [kinds], stale?, gates_note?}`.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import List, Literal
+
+
+@dataclass
+class ReviewVerdict:
+    decision: Literal["approved", "approved_with_findings", "rejected"]
+    confidence: float
+
+    @classmethod
+    def aggregate(cls, verdicts: List['ReviewVerdict']) -> 'ReviewVerdict':
+        """Aggregates multiple verdicts."""
+        if not verdicts:
+            raise ValueError("Cannot aggregate an empty list of verdicts.")
+
+        # If all decisions are the same, return that decision with average confidence
+        first_decision = verdicts[0].decision
+        if all(v.decision == first_decision for v in verdicts):
+            avg_confidence = sum(v.confidence for v in verdicts) / len(verdicts)
+            return cls(decision=first_decision, confidence=avg_confidence)
+
+        # Otherwise, resolve conflicts
+        return cls.resolve_conflicts(verdicts)
+
+    @classmethod
+    def resolve_conflicts(cls, verdicts: List['ReviewVerdict']) -> 'ReviewVerdict':
+        """Resolves conflicting votes by taking the decision with the highest confidence."""
+        if not verdicts:
+            raise ValueError("Cannot resolve conflicts in an empty list of verdicts.")
+
+        # Simple resolution: pick the one with the highest confidence
+        highest_confidence_verdict = max(verdicts, key=lambda v: v.confidence)
+        return cls(decision=highest_confidence_verdict.decision, confidence=highest_confidence_verdict.confidence)
+
+    @classmethod
+    def confidence_weighted_consensus(cls, verdicts: List['ReviewVerdict']) -> 'ReviewVerdict':
+        """Calculates a consensus weighted by the confidence of each verdict."""
+        if not verdicts:
+            raise ValueError("Cannot calculate consensus for an empty list of verdicts.")
+
+        scores = {"approved": 0.0, "approved_with_findings": 0.0, "rejected": 0.0}
+
+        for verdict in verdicts:
+            scores[verdict.decision] += verdict.confidence
+
+        winning_decision = max(scores, key=scores.get)
+
+        # Calculate a new confidence for the winning decision
+        total_confidence = sum(v.confidence for v in verdicts)
+        weighted_confidence = scores[winning_decision] / total_confidence if total_confidence > 0 else 0.0
+
+        return cls(decision=winning_decision, confidence=weighted_confidence)
+
+
 #: The severities that stop a person rather than inform them.
 BLOCKING = ("critical", "high")
 
