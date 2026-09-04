@@ -95,3 +95,21 @@ def journal_stem(issue: str) -> str:
 
 def events_file(project: Project, issue: str) -> Path:
     return project_log_dir(project) / f"{journal_stem(issue)}-events.jsonl"
+
+
+def workspace_path(workspace: Path | str, path: str) -> Path:
+    """Resolve `path` relative to `workspace`, refusing any escape.
+
+    A path escapes if its resolved destination lies outside `workspace`,
+    whether by `../` components, an absolute path, or a symlink.
+    """
+    root = Path(workspace).resolve()
+    target = (Path(workspace) / path).resolve()
+
+    # Path.is_relative_to is Python 3.9+, Path() / ".." resolves out.
+    try:
+        target.relative_to(root)
+    except ValueError:
+        raise ValueError(f"path {path!r} escapes workspace {root}") from None
+
+    return target
