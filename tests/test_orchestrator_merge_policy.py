@@ -93,3 +93,35 @@ def test_coverage_pragma_blocked_when_review_rejected():
     r = _result(added_suppressions=["pragma: no cover"],
                 review=ReviewResult(decision="rejected", score=20))
     assert should_auto_merge(m, r) is False
+
+from openfactory.contracts.review import Finding
+from openfactory.orchestrator.merge_policy import format_review
+
+def test_review_event_advisory_mode_returns_comment():
+    review = ReviewResult(decision="rejected", score=10)
+    assert review_event(review, mode="advisory") == "comment"
+
+def test_review_event_defaults_to_comment_for_unknown_decision():
+    # If a decision is not explicitly mapped in _EVENT, it defaults to comment
+    review = ReviewResult.model_construct(decision="unknown_decision", score=50) # type: ignore
+    assert review_event(review) == "comment"
+
+def test_format_review():
+    review = ReviewResult(
+        decision="approved_with_findings",
+        score=85,
+        summary="Looks mostly good",
+        findings=[
+            Finding(severity="low", description="Fix typo", file="README.md", line=10),
+            Finding(severity="medium", description="Consider renaming")
+        ]
+    )
+    formatted = format_review(review)
+    expected_lines = [
+        "**approved_with_findings** — score 85",
+        "",
+        "Looks mostly good",
+        "- **low** (`README.md:10`): Fix typo",
+        "- **medium**: Consider renaming"
+    ]
+    assert formatted == "\n".join(expected_lines)
