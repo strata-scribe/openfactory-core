@@ -64,10 +64,6 @@ def clone_url(cfg: BoxConfig, *, token: str | None) -> str:
     return clone_url_for(project, cfg.repo, token=token)
 
 
-def redact(text: str) -> str:
-    return re.sub(r"(https://)[^@/\s]+@", r"\1***@", text)
-
-
 @dataclass
 class BoxConfig:
     project: str
@@ -335,7 +331,7 @@ def _emit(result) -> None:
 
 def main() -> int:
     from openfactory.contracts import JobState, RunResult
-    from openfactory.credentials import deployment_forge_token, forge_token, forge_token_for
+    from openfactory.credentials import deployment_forge_token, forge_token, forge_token_for, redact
 
     issue = os.environ.get("OPENFACTORY_ISSUE", "")
     try:
