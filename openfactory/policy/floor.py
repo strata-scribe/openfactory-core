@@ -40,3 +40,23 @@ GLOBAL_DENY: dict[str, str] = {
                              "(_AGENT_CRED_VARS, _AWS_CRED_VARS); "
                              "openfactory/adapters/sandbox/container.py::_passthrough_env",
 }
+
+
+class FloorPolicy:
+    """Policy verifier for minimum testing and security guarantees."""
+
+    def __init__(self, config: dict | None = None) -> None:
+        self.config = config or {}
+
+    def verify(self) -> bool:
+        """Verifies the floor policy requirements."""
+        return self.check_minimum_coverage() and self.enforce_security_floor()
+
+    def check_minimum_coverage(self) -> bool:
+        """Checks if minimum coverage requirements are met."""
+        coverage = self.config.get("coverage", 0)
+        return coverage >= 80
+
+    def enforce_security_floor(self) -> bool:
+        """Enforces the presence of security floor gates."""
+        return self.config.get("security_enabled", False)
