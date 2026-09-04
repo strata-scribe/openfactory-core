@@ -40,6 +40,8 @@ happens to the source branch, who owns the work item's state — the reason is o
 
 from __future__ import annotations
 
+from openfactory.credentials import redact as _redact
+
 import logging
 import re
 import urllib.parse
@@ -77,10 +79,6 @@ _POLICY_BUCKET = {
     "notApplicable": "skip",
 }
 
-
-def _redact(text: str) -> str:
-    """Strip any token embedded in an authenticated URL before it reaches a log or an error."""
-    return re.sub(r"(https://)[^@/\s]+@", r"\1***@", text or "")
 
 
 def _qualified(project: str, repo: str) -> str:

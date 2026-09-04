@@ -6,6 +6,8 @@ back to ambient `gh` auth otherwise (dev only).
 
 from __future__ import annotations
 
+from openfactory.credentials import redact as _redact
+
 import logging
 import os
 import re
@@ -53,10 +55,6 @@ def _ci_status_from_checks(checks: list[dict]) -> str:
         return "pending"
     return "success"
 
-
-def _redact(text: str) -> str:
-    """Strip any token embedded in an authenticated URL before it reaches a log/error."""
-    return re.sub(r"(https://)[^@/\s]+@", r"\1***@", text or "")
 
 
 class GitHubForge(ForgeAdapter):

@@ -33,6 +33,8 @@ redacted from every log line.
 
 from __future__ import annotations
 
+from openfactory.credentials import redact as _redact
+
 import logging
 import os
 import re
@@ -50,10 +52,6 @@ KNOWLEDGE_BRANCH = "openfactory-knowledge"
 
 _GIT_TIMEOUT = 180
 
-
-def _redact(text: str) -> str:
-    """Strip `user:token@` credentials out of anything we log."""
-    return re.sub(r"(https://)[^@/\s]+@", r"\1***@", text or "")
 
 
 def _git(

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 
 from openfactory.contracts.bot import BotIdentity
@@ -338,3 +339,20 @@ def discover_forge_token(kind: str) -> str | None:
     except Exception:  # noqa: BLE001 — a convenience may not break onboarding
         log.debug("the %s login could not be discovered", kind, exc_info=True)
         return None
+
+def redact(text: str) -> str:
+    """Redact tokens, private keys, API secrets, and base64 encoded credentials from text."""
+    if not text:
+        return text
+    # Tokens and secrets
+    text = re.sub(r'(?i)(token|key|secret|password|auth|api[_.-]key|basic|bearer)[\s:=]+["\']?([a-zA-Z0-9_\-\.\=\+\/]{8,})["\']?', r'\1: ***', text)
+    # AWS / Generic long secrets
+    text = re.sub(r'(?i)(AKIA|ASIA)[A-Z0-9]{16}', r'***', text)
+    # Catch-all for very long base64 or hex strings that look like hash/tokens
+    text = re.sub(r'[a-zA-Z0-9_\-\.\=\+\/]{32,}', r'***', text)
+    # Private Keys
+    text = re.sub(r'-----BEGIN.*?PRIVATE KEY-----.*?-----END.*?PRIVATE KEY-----', r'-----BEGIN PRIVATE KEY-----\n***\n-----END PRIVATE KEY-----', text, flags=re.DOTALL)
+    # Basic Auth / URL credentials
+    text = re.sub(r'(https?://)[^@/\s]+@', r'\1***@', text)
+
+    return text

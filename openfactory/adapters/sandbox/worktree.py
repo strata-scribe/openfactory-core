@@ -7,6 +7,8 @@ ContainerSandbox. Same Protocol, so the orchestrator is identical against both.
 
 from __future__ import annotations
 
+from openfactory.credentials import redact as _redact
+
 import logging
 import os
 import re
@@ -122,10 +124,6 @@ def _scrubbed_env(keep: tuple[str, ...] = ()) -> dict[str, str]:
             env.pop(var, None)
     return env
 
-
-def _redact(text: str) -> str:
-    """Strip any embedded credential from an authenticated URL before logging."""
-    return re.sub(r"(https://)[^@/\s]+@", r"\1***@", text)
 
 
 def _run(cmd: list[str], *, cwd: Path | None = None, timeout: int = 120) -> tuple[int, str]:

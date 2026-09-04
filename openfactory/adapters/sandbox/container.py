@@ -36,6 +36,8 @@ theoretical question into one somebody will genuinely ask.
 
 from __future__ import annotations
 
+from openfactory.credentials import redact as _redact
+
 import logging
 import os
 import re
@@ -63,9 +65,6 @@ _WORKDIR = "/workspace"
 #: and must not collide with anything a client could reasonably already have there.
 TOOLBOX_MOUNT = "/opt/openfactory-toolbox"
 
-
-def _redact(text: str) -> str:
-    return re.sub(r"(https://)[^@/\s]+@", r"\1***@", text)
 
 
 def _container_name(project: str | None, safe_branch: str) -> str:
