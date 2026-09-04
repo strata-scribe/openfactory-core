@@ -21,6 +21,8 @@ recency, that is a different class and should say so.
 from __future__ import annotations
 
 import threading
+from collections import OrderedDict
+import time
 
 
 class BoundedDict[K, V]:
@@ -75,3 +77,103 @@ class BoundedDict[K, V]:
     def __len__(self) -> int:
         with self._lock:
             return len(self._data)
+
+
+class LRUCache[K, V]:
+    """A thread-safe mapping that evicts the least recently used entry when it would exceed `maxsize`.
+
+    Uses `OrderedDict` to track recency. Accessing a key moves it to the end (most recent).
+    """
+
+    __slots__ = ("_data", "_lock", "_maxsize", "evicted")
+
+    def __init__(self, maxsize: int) -> None:
+        if maxsize < 1:
+            raise ValueError(f"maxsize must be at least 1, got {maxsize}")
+        self._data: OrderedDict[K, V] = OrderedDict()
+        self._lock = threading.Lock()
+        self._maxsize = maxsize
+        self.evicted = 0
+
+    def __setitem__(self, key: K, value: V) -> None:
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+            elif len(self._data) >= self._maxsize:
+                self._data.popitem(last=False)
+                self.evicted += 1
+            self._data[key] = value
+
+    def __getitem__(self, key: K) -> V:
+        with self._lock:
+            value = self._data[key]
+            self._data.move_to_end(key)
+            return value
+
+    def get(self, key: K, default: V | None = None) -> V | None:
+        with self._lock:
+            if key in self._data:
+                value = self._data[key]
+                self._data.move_to_end(key)
+                return value
+            return default
+
+    def pop(self, key: K, default: V | None = None) -> V | None:
+        with self._lock:
+            return self._data.pop(key, default)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
+
+    def __contains__(self, key: object) -> bool:
+        with self._lock:
+            return key in self._data
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._data)
+
+
+class TokenBucket:
+    """A thread-safe token bucket for rate limiting."""
+
+    __slots__ = ("capacity", "refill_rate_per_sec", "_tokens", "_last_refill", "_lock")
+
+    def __init__(self, capacity: float, refill_rate_per_sec: float) -> None:
+        if capacity <= 0:
+            raise ValueError(f"capacity must be positive, got {capacity}")
+        if refill_rate_per_sec <= 0:
+            raise ValueError(f"refill_rate_per_sec must be positive, got {refill_rate_per_sec}")
+        self.capacity = float(capacity)
+        self.refill_rate_per_sec = float(refill_rate_per_sec)
+        self._tokens = self.capacity
+        self._last_refill = time.time()
+        self._lock = threading.Lock()
+
+    def _refill(self) -> None:
+        now = time.time()
+        elapsed = now - self._last_refill
+        if elapsed > 0:
+            new_tokens = elapsed * self.refill_rate_per_sec
+            self._tokens = min(self.capacity, self._tokens + new_tokens)
+            self._last_refill = now
+
+    @property
+    def available(self) -> float:
+        with self._lock:
+            self._refill()
+            return self._tokens
+
+    def consume(self, tokens: float = 1.0) -> bool:
+        if tokens < 0:
+            raise ValueError(f"tokens to consume must be non-negative, got {tokens}")
+        if tokens > self.capacity:
+            return False
+
+        with self._lock:
+            self._refill()
+            if self._tokens >= tokens:
+                self._tokens -= tokens
+                return True
+            return False
