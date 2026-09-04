@@ -57,6 +57,7 @@ deploy/registry.yaml
 
 # local agent scratch (worktrees, session state) — never part of the product
 .claude/
+.agents/
 
 # setuptools' build tree. It was TRACKED — 201 stale copies of `sdlc/` swept in by a `git add -A`
 # — and that is worse than untidy: `test_the_wheel_ships_what_the_platform_needs` exists because
