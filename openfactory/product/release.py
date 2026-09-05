@@ -151,3 +151,37 @@ def release(project, issue: str, *, approver: str, comment: str = "") -> tuple[b
                   "approved and the job was not told", name, issue, approver, str(exc)[:200])
         return False, ("não consegui levar a sua liberação até a esteira agora. **Nada subiu** — "
                        "o time já foi avisado e eu volto a você assim que resolver.")
+
+def detect_version_bump(old_version: str, new_version: str) -> str:
+    """Detects the semantic version bump type ('major', 'minor', 'patch', or 'none')."""
+    from openfactory.semver import parse
+    old_v = parse(old_version)
+    new_v = parse(new_version)
+
+    if new_v.major > old_v.major:
+        return "major"
+    if new_v.minor > old_v.minor:
+        return "minor"
+    if new_v.patch > old_v.patch:
+        return "patch"
+    return "none"
+
+def compile_release_notes(commits: list[str]) -> list[str]:
+    """Extracts and formats release notes from a list of commit messages."""
+    notes = []
+    for commit in commits:
+        cleaned = commit.strip()
+        if cleaned:
+            # take the first line as the summary
+            notes.append(cleaned.split('\n')[0].strip())
+    return notes
+
+def generate_changelog_markdown(version: str, notes: list[str]) -> str:
+    """Formats release notes into a Markdown changelog section."""
+    if not notes:
+        return f"## {version}\n\n- No changes\n"
+
+    lines = [f"## {version}", ""]
+    for note in notes:
+        lines.append(f"- {note}")
+    return "\n".join(lines) + "\n"
