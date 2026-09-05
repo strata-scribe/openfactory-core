@@ -19,6 +19,8 @@ that is missing exactly when somebody is watching.
 from __future__ import annotations
 
 import logging
+import subprocess
+import os
 
 log = logging.getLogger("openfactory.c18")
 
@@ -144,3 +146,35 @@ def _checkout_key(project, repo: str) -> str:
     if _is_default_repo(project, repo):
         return project.name
     return f"{project.name}--{repo.replace('/', '--')}"
+
+class RuntimeCardRepo:
+    def __init__(self, repo_path: str):
+        self.repo_path = repo_path
+
+    def _git(self, *args, input_data: bytes = None) -> bytes:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=self.repo_path,
+            input=input_data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+        return result.stdout
+
+    def write_blob(self, content: bytes) -> str:
+        out = self._git("hash-object", "-w", "--stdin", input_data=content)
+        return out.decode().strip()
+
+    def read_blob(self, blob_sha: str) -> bytes:
+        return self._git("cat-file", "-p", blob_sha)
+
+    def create_commit(self, tree_sha: str, parent_sha: str, message: str) -> str:
+        args = ["commit-tree", tree_sha, "-m", message]
+        if parent_sha:
+            args.extend(["-p", parent_sha])
+        out = self._git(*args)
+        return out.decode().strip()
+
+    def isolate_branch(self, branch_name: str, commit_sha: str):
+        self._git("update-ref", f"refs/heads/{branch_name}", commit_sha)
