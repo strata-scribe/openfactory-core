@@ -91,6 +91,7 @@ class Episode:
     remedy: str
     outcome: str = PENDING
     ts: str = ""
+    vector: tuple[float, ...] = ()
 
 
 @dataclass
@@ -103,6 +104,7 @@ class History:
     worked: int = 0
     failed: int = 0
     pending: int = 0
+    vector: tuple[float, ...] = ()
 
     @property
     def seen(self) -> int:
@@ -152,12 +154,27 @@ def collapse(episodes: list[Episode]) -> list[Episode]:
     return [latest[k] for k in order]
 
 
-def learn(episodes: list[Episode]) -> dict[str, History]:
-    """Fold the record into what it means, per signature. Pure — the claim "this never works" is
-    arithmetic somebody can recount, not something a model concluded."""
-    out: dict[str, History] = {}
-    for ep in collapse(episodes)[-REMEMBER_LAST:]:
-        h = out.setdefault(ep.sig, History(sig=ep.sig))
+from collections import UserDict, OrderedDict
+
+class MemoryStore(UserDict):
+    """An integrated key-value store for episodic memory, featuring LRU eviction and vector search."""
+
+    def __init__(self, max_signatures: int = REMEMBER_LAST):
+        super().__init__()
+        self.data: OrderedDict[str, History] = OrderedDict()
+        self.max_signatures = max_signatures
+
+    def add(self, ep: Episode):
+        """Populates the key-value memory with an episode."""
+        h = self.data.get(ep.sig)
+        if h is None:
+            if len(self.data) >= self.max_signatures:
+                self.data.popitem(last=False)  # LRU Eviction
+            h = History(sig=ep.sig, vector=ep.vector)
+            self.data[ep.sig] = h
+        else:
+            self.data.move_to_end(ep.sig)
+
         h.tickets.add(ep.ticket)
         h.attempts += 1
         if ep.outcome == WORKED:
@@ -166,7 +183,40 @@ def learn(episodes: list[Episode]) -> dict[str, History]:
             h.failed += 1
         else:
             h.pending += 1
-    return out
+
+    def get(self, key: str, default=None) -> History | None:
+        """Key-value memory retrieval. Moves accessed item to the end (most recently used)."""
+        if key in self.data:
+            self.data.move_to_end(key)
+            return self.data[key]
+        return default
+
+    def __getitem__(self, key: str) -> History:
+        if key not in self.data:
+            raise KeyError(key)
+        self.data.move_to_end(key)
+        return self.data[key]
+
+    def find_similar(self, query_vector: tuple[float, ...], threshold: float) -> list[History]:
+        """Vector score thresholding to find similar histories based on dot product."""
+        results = []
+        for h in self.data.values():
+            if h.vector and len(h.vector) == len(query_vector):
+                score = sum(a * b for a, b in zip(h.vector, query_vector))
+                if score >= threshold:
+                    results.append((score, h))
+
+        results.sort(key=lambda x: x[0], reverse=True)
+        return [h for score, h in results]
+
+
+def learn(episodes: list[Episode]) -> MemoryStore:
+    """Fold the record into what it means, per signature. Pure — the claim "this never works" is
+    arithmetic somebody can recount, not something a model concluded."""
+    store = MemoryStore()
+    for ep in collapse(episodes)[-REMEMBER_LAST:]:
+        store.add(ep)
+    return store
 
 
 def temper(remedy, history: History | None):
@@ -193,7 +243,7 @@ def temper(remedy, history: History | None):
     )
 
 
-def learn_from(loops) -> dict[str, History]:
+def learn_from(loops) -> MemoryStore:
     """What the LEDGER says, per failure signature (ADR-0021 §1).
 
     The ledger is the durable form; `Episode` is the shape this module reasons in. Converting here

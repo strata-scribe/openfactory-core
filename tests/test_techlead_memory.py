@@ -264,3 +264,70 @@ def test_the_phrase_a_human_reads_counts_jira_tickets_correctly():
     said = learn(episodes)["throttled"].phrase()
 
     assert "4 tickets" in said, said
+
+
+
+
+# ── key-value memory retrieval, vector score thresholding, least-recently-used cache eviction ──
+
+def test_key_value_memory_retrieval():
+    from openfactory.techlead.memory import Episode, learn, WORKED
+
+    episodes = [
+        Episode(ticket="1", cause="c", sig="sig1", remedy="retry", outcome=WORKED, ts="T1"),
+    ]
+
+    store = learn(episodes)
+
+    # Retrieve key-value
+    h1 = store.get("sig1")
+    assert h1 is not None
+    assert h1.worked == 1
+
+    # Missing key
+    assert store.get("sig2") is None
+
+    # Missing key raises KeyError
+    import pytest
+    with pytest.raises(KeyError):
+        _ = store["sig2"]
+
+def test_vector_score_thresholding():
+    from openfactory.techlead.memory import Episode, learn
+
+    # Episodes with vector embeddings
+    episodes = [
+        Episode(ticket="1", cause="c", sig="sig1", remedy="retry", vector=(1.0, 0.0)),
+        Episode(ticket="2", cause="c", sig="sig2", remedy="retry", vector=(0.5, 0.5)),
+        Episode(ticket="3", cause="c", sig="sig3", remedy="retry", vector=(0.0, 1.0)),
+    ]
+
+    store = learn(episodes)
+
+    # Query matching sig1 most closely, thresholding out sig3
+    results = store.find_similar(query_vector=(1.0, 0.0), threshold=0.4)
+
+    assert len(results) == 2
+    # Should be sorted by score descending
+    assert results[0].sig == "sig1" # score 1.0
+    assert results[1].sig == "sig2" # score 0.5
+
+def test_least_recently_used_cache_eviction():
+    from openfactory.techlead.memory import Episode, MemoryStore
+
+    # Create a store with a tiny LRU cache size
+    store = MemoryStore(max_signatures=2)
+
+    episodes = [
+        Episode(ticket="1", cause="c", sig="sig1", remedy="retry", ts="T1"),
+        Episode(ticket="2", cause="c", sig="sig2", remedy="retry", ts="T2"),
+        Episode(ticket="3", cause="c", sig="sig3", remedy="retry", ts="T3"),
+    ]
+
+    for ep in episodes:
+        store.add(ep)
+
+    # sig1 should be evicted from the LRU cache because max_signatures is 2
+    assert store.get("sig1") is None
+    assert store.get("sig2") is not None
+    assert store.get("sig3") is not None
