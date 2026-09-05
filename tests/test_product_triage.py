@@ -196,3 +196,26 @@ def test_a_given_when_then_ticket_is_ready_to_propose():
                body="Dado que o extrato foi importado\nQuando o mês fecha\nEntão o saldo bate")
 
     assert has_criteria(t) is True
+
+
+# ── categorization, severity, and assignee recommendations ──────────────────────
+
+def test_ticket_categorization():
+    assert _t(1, labels=["bug"]).category == "bug"
+    assert _t(2, labels=["feature"]).category == "feature"
+    assert _t(3, labels=["enhancement"]).category == "feature"
+    assert _t(4, labels=["other"]).category is None
+    assert _t(5).category is None
+
+def test_severity_scoring():
+    assert _t(1, labels=["critical"]).severity_score == "critical"
+    assert _t(2, labels=["high"]).severity_score == "high"
+    assert _t(3, labels=["medium"]).severity_score == "medium"
+    assert _t(4, labels=["low"]).severity_score == "low"
+    assert _t(5, labels=["critical", "low"]).severity_score == "critical"
+    assert _t(6, labels=["other"]).severity_score is None
+
+def test_assignee_recommendation():
+    assert _t(1, assignees=["alice", "bob"]).recommended_assignee == "alice"
+    assert _t(2, assignees=["bob"]).recommended_assignee == "bob"
+    assert _t(3).recommended_assignee is None

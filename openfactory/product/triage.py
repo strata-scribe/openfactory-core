@@ -87,6 +87,34 @@ class Ticket(BaseModel):
 
         return [canonical_ref(c) for c in v] if isinstance(v, list) else v
 
+
+    @property
+    def category(self) -> str | None:
+        labels = {label.lower() for label in self.labels}
+        if "bug" in labels:
+            return "bug"
+        if "feature" in labels or "enhancement" in labels:
+            return "feature"
+        return None
+
+    @property
+    def severity_score(self) -> str | None:
+        severity_labels = {"critical", "high", "medium", "low"}
+        labels = {label.lower() for label in self.labels}
+        found = labels & severity_labels
+        if found:
+            # Return the highest severity if multiple, though usually just one
+            for s in ["critical", "high", "medium", "low"]:
+                if s in found:
+                    return s
+        return None
+
+    @property
+    def recommended_assignee(self) -> str | None:
+        if self.assignees:
+            return self.assignees[0]
+        return None
+
     @property
     def human_owned(self) -> bool:
         """Whether a person has claimed this ticket out of the pipeline's reach. Checked from
